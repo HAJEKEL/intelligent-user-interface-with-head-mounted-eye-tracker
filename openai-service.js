@@ -44,7 +44,7 @@ class OpenAIService extends EventEmitter {
     
     // Check if the response is complete based on punctuation
     isResponseComplete(text) {
-        return /[,.?!]\s*$/.test(text);
+        return /[.?!]\s*$/.test(text);
     }
     
     // Check if the text has at least a minimum number of words
