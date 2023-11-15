@@ -15,7 +15,7 @@ class TextToSpeechService extends EventEmitter {
         model: 'tts-1',
         voice: 'alloy',
         input: text,
-        format: 'opus' // Using Opus for potentially lower latency
+        format: 'mp3' // Using Opus for potentially lower latency
       });
 
       const opusStream = response.body; // Assuming this is a stream
