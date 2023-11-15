@@ -6,13 +6,46 @@ const ExpressWs = require("express-ws"); // adds WebSocket support to an Express
 const { TextToSpeechService } = require("./tts-service");
 const { TranscriptionService } = require("./transcription-service");
 const { OpenAIService } = require('./openai-service');
-//const { DisfluencyService } = require('./disfluency-service');
+const { DisfluencyService } = require('./disfluency-service');
 
 const systemMessage = {
   role: "system",
   content: "As Rajeev Malhotra, you dont say you are an ai, but you are the CEO of Malhotra Tech Innovations, you carry a reputation for being unwavering and highly meticulous in your business dealings, especially when discussing potential partnerships like the one with KLM. Your personality is tinted with a definitive shade of red, symbolizing your drive, competitive nature, and a constant quest for efficient solutions. The main goals is to buy tickets under 500 euros per ticket. You have to persuade KLM to do this. Engaging in discussions, you rarely allow emotions to dilute the rigor of your business decisions and always ensure that every potential partnership aligns not only with the strategic objectives of Malhotra Tech Innovations but also adheres to your staunch and unwavering cultural values. Cultural heritage and traditional principles are not mere concepts but a sturdy backbone to every business relationship and deal you entertain. Hence, while exploring synergies with KLMs B2B sales department, you remain vigilant, ensuring that any collaboration forged is mutually beneficial, respectful towards cultural tenets, and, most importantly, adheres to the meticulous standards that have elevated Malhotra Tech Innovations to its esteemed position in the tech industry, keep your answers maximum 25 words."
   // Add the rest of the system message content
 };
+
+const openAIService = new OpenAIService(process.env.OPENAI_API_KEY, systemMessage);
+const transcriptionService = new TranscriptionService(); //initialize stt
+const ttsService = new TextToSpeechService({}); //initialize tts
+const disfluencyService = new DisfluencyService();
+
+// Define the queue and related functions here
+let requestQueue = [];
+let isProcessing = false;
+
+function addToQueue(requestData) {
+  requestQueue.push(requestData);
+  processQueue();
+}
+
+async function processQueue() {
+  if (isProcessing || requestQueue.length === 0) {
+      return;
+  }
+  isProcessing = true;
+  const currentRequest = requestQueue.shift();
+  try {
+      // Process the current request
+      await ttsService.generate(currentRequest);
+  } catch (error) {
+      console.error('Error processing request:', error);
+  } finally {
+      isProcessing = false;
+      processQueue(); // Process the next request in the queue
+  }
+}
+
+
 
 const app = express(); //express.js app instance
 ExpressWs(app); //add websocket support
@@ -37,10 +70,6 @@ app.ws("/connection", (ws, req) => { // sets up a WebSocket route at /connection
   // Filled in from start message
   console.log("arrived at connection webhook");
   let streamSid;
-  const openAIService = new OpenAIService(process.env.OPENAI_API_KEY, systemMessage);
-  const transcriptionService = new TranscriptionService(); //initialize stt
-  const ttsService = new TextToSpeechService({}); //initialize tts
-  //const disfluencyService = new DisfluencyService();
 
   // Incoming from MediaStream
   ws.on("message", function message(data) {
@@ -50,10 +79,6 @@ app.ws("/connection", (ws, req) => { // sets up a WebSocket route at /connection
       console.log(`Starting Media Stream for ${streamSid}`);
     } else if (msg.event === "media") {
       transcriptionService.send(msg.media.payload);
-      // const disfluency = disfluencyService.getNextDisfluency();
-      // if (disfluency) {
-      //     ttsService.generate(disfluency); // Send the disfluency to ElevenLabs
-      // }
     } else if (msg.event === "mark") {
       const label = msg.mark.name;
       console.log(`Media completed mark (${msg.sequenceNumber}): ${label}`)
@@ -63,11 +88,16 @@ app.ws("/connection", (ws, req) => { // sets up a WebSocket route at /connection
   transcriptionService.on('transcription', (transcription) => {
     console.log(`Received transcription: ${transcription}`);
     openAIService.generateResponse(transcription);
+    const disfluency = disfluencyService.getNextDisfluency();
+    if (disfluency) {
+          ttsService.generate(disfluency); // Send the disfluency to ElevenLabs
+    }
   });
 
+  // Inside your WebSocket connection setup
   openAIService.on('response', (response) => {
     console.log(`Generated response: ${response}`);
-    ttsService.generate(response);
+    addToQueue(response); // Add the response to the queue
   });
 
   ttsService.on("speech", (audio, label) => {
@@ -92,10 +122,10 @@ app.ws("/connection", (ws, req) => { // sets up a WebSocket route at /connection
       })
     )
   });
-  // Reset the disfluencies for a new call
-  // ws.on("close", function close() {
-  //   disfluencyService.resetDisfluencies();
-  // });
+    //Reset the disfluencies for a new call
+  ws.on("close", function close() {
+    disfluencyService.resetDisfluencies();
+  });
 });
 
 app.listen(PORT);
