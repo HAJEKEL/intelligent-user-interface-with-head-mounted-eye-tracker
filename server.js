@@ -3,8 +3,8 @@ require("dotenv").config();  //  loads configuration from a .env file into the e
 const express = require("express"); // import express.js library to create express.js app
 const ExpressWs = require("express-ws"); // adds WebSocket support to an Express.js application.
 
-//const { TextToSpeechService } = require("./tts-service");
-const { TextToSpeechService } = require("./tts-service-openai");
+const { TextToSpeechService } = require("./tts-service");
+//const { TextToSpeechService } = require("./tts-service-openai");
 const { TranscriptionService } = require("./transcription-service");
 const { OpenAIService } = require('./openai-service');
 const { DisfluencyService } = require('./disfluency-service');
@@ -17,8 +17,8 @@ const systemMessage = {
 
 const openAIService = new OpenAIService(process.env.OPENAI_API_KEY, systemMessage);
 const transcriptionService = new TranscriptionService(); //initialize stt
-//const ttsService = new TextToSpeechService({}); //initialize tts
-const ttsService = new TextToSpeechService(process.env.OPENAI_API_KEY); //initialize tts
+const ttsService = new TextToSpeechService({}); //initialize tts
+//const ttsService = new TextToSpeechService(process.env.OPENAI_API_KEY); //initialize tts
 
 const disfluencyService = new DisfluencyService();
 
